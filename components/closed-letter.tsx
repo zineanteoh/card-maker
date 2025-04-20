@@ -5,17 +5,18 @@ import { ChevronRight } from "lucide-react";
 import { useState } from "react";
 
 type ClosedLetterProps = {
-  onOpen: () => void;
   recipientName: string;
+  onOpen?: () => void;
 };
 
 export default function ClosedLetter({
-  onOpen,
   recipientName,
+  onOpen,
 }: ClosedLetterProps) {
   const [isOpening, setIsOpening] = useState(false);
 
   const handleOpenClick = () => {
+    if (!onOpen || isOpening) return;
     setIsOpening(true);
     setTimeout(() => {
       onOpen();
@@ -26,9 +27,10 @@ export default function ClosedLetter({
     <div className="flex flex-col items-center justify-center">
       {/* Envelope/Letter */}
       <motion.div
-        className="relative w-full max-w-md aspect-[4/3] mb-8"
+        className="relative w-full max-w-md aspect-[4/3] mb-8 cursor-pointer"
         whileHover={{ scale: 1.02 }}
         transition={{ type: "spring", stiffness: 300 }}
+        onClick={handleOpenClick}
       >
         {/* Letter background */}
         <div className="absolute inset-0 bg-gradient-to-b from-red-600 to-red-700 rounded-lg shadow-xl overflow-hidden">
@@ -74,29 +76,31 @@ export default function ClosedLetter({
         </div>
       </motion.div>
 
-      {/* Open button */}
-      <motion.button
-        onClick={handleOpenClick}
-        className="group relative px-8 py-3 bg-gradient-to-r from-amber-500 to-amber-600 rounded-full text-white font-medium shadow-lg hover:shadow-xl transition-all duration-300 overflow-hidden"
-        whileHover={{ scale: 1.05 }}
-        whileTap={{ scale: 0.98 }}
-      >
-        {/* Button background effects */}
-        <div className="absolute inset-0 bg-gradient-to-r from-amber-400 to-amber-500 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+      {/* Open button - Conditionally render/enable */}
+      {onOpen && (
+        <motion.button
+          onClick={handleOpenClick}
+          className="group relative px-8 py-3 bg-gradient-to-r from-amber-500 to-amber-600 rounded-full text-white font-medium shadow-lg hover:shadow-xl transition-all duration-300 overflow-hidden"
+          whileHover={{ scale: 1.05 }}
+          whileTap={{ scale: 0.98 }}
+        >
+          {/* Button background effects */}
+          <div className="absolute inset-0 bg-gradient-to-r from-amber-400 to-amber-500 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
 
-        {/* Button content */}
-        <div className="relative flex items-center space-x-2">
-          <span>Open Letter</span>
-          <ChevronRight className="w-5 h-5 group-hover:translate-x-1 transition-transform duration-300" />
-        </div>
+          {/* Button content */}
+          <div className="relative flex items-center space-x-2">
+            <span>Open Letter</span>
+            <ChevronRight className="w-5 h-5 group-hover:translate-x-1 transition-transform duration-300" />
+          </div>
 
-        {/* Sparkle effects */}
-        <div className="absolute top-0 left-0 w-full h-full pointer-events-none">
-          <div className="absolute top-1/2 left-1/4 w-1 h-1 bg-white rounded-full opacity-0 group-hover:opacity-70 transition-opacity duration-300 delay-100"></div>
-          <div className="absolute top-1/3 left-1/2 w-1.5 h-1.5 bg-white rounded-full opacity-0 group-hover:opacity-70 transition-opacity duration-300 delay-200"></div>
-          <div className="absolute top-2/3 left-3/4 w-1 h-1 bg-white rounded-full opacity-0 group-hover:opacity-70 transition-opacity duration-300 delay-150"></div>
-        </div>
-      </motion.button>
+          {/* Sparkle effects */}
+          <div className="absolute top-0 left-0 w-full h-full pointer-events-none">
+            <div className="absolute top-1/2 left-1/4 w-1 h-1 bg-white rounded-full opacity-0 group-hover:opacity-70 transition-opacity duration-300 delay-100"></div>
+            <div className="absolute top-1/3 left-1/2 w-1.5 h-1.5 bg-white rounded-full opacity-0 group-hover:opacity-70 transition-opacity duration-300 delay-200"></div>
+            <div className="absolute top-2/3 left-3/4 w-1 h-1 bg-white rounded-full opacity-0 group-hover:opacity-70 transition-opacity duration-300 delay-150"></div>
+          </div>
+        </motion.button>
+      )}
     </div>
   );
 }
