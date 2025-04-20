@@ -3,12 +3,23 @@
 import CardDisplay from "@/components/card-display";
 import ClosedLetter from "@/components/closed-letter";
 import FloatingElements from "@/components/floating-elements";
-import { createClient } from "@/lib/supabase/client";
-import { AnimatePresence, motion } from "framer-motion";
-import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogClose,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { createClient } from "@/lib/supabase/client";
+import { AnimatePresence, motion } from "framer-motion";
+import { Check, Copy } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import Link from "next/link";
 
 export default function BirthdayScroll() {
   const [isOpen, setIsOpen] = useState(false);
@@ -33,6 +44,9 @@ export default function BirthdayScroll() {
 
   const [imagePreviewUrl, setImagePreviewUrl] = useState<string | null>(null);
   const [caption, setCaption] = useState("");
+
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [hasCopied, setHasCopied] = useState(false);
 
   const supabase = createClient();
 
@@ -64,6 +78,18 @@ export default function BirthdayScroll() {
     message.trim() !== "" &&
     senderName.trim() !== "" &&
     cardDate.trim() !== "";
+
+  const handleCopyLink = async () => {
+    if (!generatedLink) return;
+    try {
+      await navigator.clipboard.writeText(generatedLink);
+      setHasCopied(true);
+      setTimeout(() => setHasCopied(false), 2000);
+    } catch (err) {
+      console.error("Failed to copy link: ", err);
+      alert("Failed to copy link.");
+    }
+  };
 
   const handleCreateCard = async () => {
     if (!isFormValid) return;
@@ -134,11 +160,17 @@ export default function BirthdayScroll() {
         const cardId = data.id;
         const link = `${window.location.origin}/card/${cardId}`;
         setGeneratedLink(link);
+        setIsModalOpen(true);
         console.log("Card saved successfully! Link:", link);
         setImageFile(null);
         if (imagePreviewUrl) URL.revokeObjectURL(imagePreviewUrl);
         setImagePreviewUrl(null);
         setCaption("");
+        setRecipientName("");
+        setMessage("");
+        setSenderName("");
+        setCardDate("");
+        setFocusedField("recipient");
       } else {
         console.error("No data returned after insert.");
         alert("Failed to save card details after potential upload.");
@@ -386,21 +418,6 @@ export default function BirthdayScroll() {
                     : "Create Card"}
                 </Button>
               </div>
-
-              {generatedLink && (
-                <div className="mt-4 p-3 bg-green-100 border border-green-300 rounded-md text-sm">
-                  <p className="font-semibold text-green-800 mb-1">
-                    Card created! Share this link:
-                  </p>
-                  <input
-                    type="text"
-                    readOnly
-                    value={generatedLink}
-                    className="w-full p-2 border border-gray-300 rounded bg-white text-gray-700 text-xs"
-                    onClick={(e) => (e.target as HTMLInputElement).select()}
-                  />
-                </div>
-              )}
             </div>
           </motion.div>
         )}
@@ -492,6 +509,51 @@ export default function BirthdayScroll() {
           <span>{isPreviewing ? "Back to Editor" : "Preview Card"}</span>
         </Button>
       </div>
+
+      <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle>Card Created Successfully!</DialogTitle>
+            <DialogDescription>
+              Your card is ready. Copy the link below and share it with your
+              friend.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <div className="flex items-center space-x-2">
+              <Input
+                id="link"
+                readOnly
+                value={generatedLink || ""}
+                className="flex-grow"
+              />
+              <Button variant="outline" size="icon" onClick={handleCopyLink}>
+                {hasCopied ? (
+                  <Check className="h-4 w-4 text-green-600" />
+                ) : (
+                  <Copy className="h-4 w-4" />
+                )}
+              </Button>
+            </div>
+          </div>
+          <DialogFooter className="sm:justify-start">
+            <DialogClose asChild>
+              <Button type="button" variant="secondary">
+                Close
+              </Button>
+            </DialogClose>
+            {generatedLink && (
+              <Link href={generatedLink} passHref legacyBehavior>
+                <a target="_blank" rel="noopener noreferrer">
+                  <Button type="button" variant="default">
+                    View Card
+                  </Button>
+                </a>
+              </Link>
+            )}
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
