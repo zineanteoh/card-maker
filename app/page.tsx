@@ -6,6 +6,9 @@ import FloatingElements from "@/components/floating-elements";
 import { createClient } from "@/lib/supabase/client";
 import { AnimatePresence, motion } from "framer-motion";
 import { useEffect, useRef, useState } from "react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 
 export default function BirthdayScroll() {
   const [isOpen, setIsOpen] = useState(false);
@@ -14,8 +17,7 @@ export default function BirthdayScroll() {
 
   const [recipientName, setRecipientName] = useState("");
   const [message, setMessage] = useState("");
-  const [imageUrl, setImageUrl] = useState("");
-  const [caption, setCaption] = useState("");
+  const [imageFile, setImageFile] = useState<File | null>(null);
   const [senderName, setSenderName] = useState("");
   const [cardDate, setCardDate] = useState("");
   const [isSaving, setIsSaving] = useState(false);
@@ -25,6 +27,12 @@ export default function BirthdayScroll() {
   const [focusedField, setFocusedField] = useState<FocusedSection>("recipient");
 
   const [isPreviewing, setIsPreviewing] = useState(false);
+
+  const [isUploading, setIsUploading] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+
+  const [imagePreviewUrl, setImagePreviewUrl] = useState<string | null>(null);
+  const [caption, setCaption] = useState("");
 
   const supabase = createClient();
 
@@ -43,6 +51,14 @@ export default function BirthdayScroll() {
     };
   }, []);
 
+  useEffect(() => {
+    return () => {
+      if (imagePreviewUrl) {
+        URL.revokeObjectURL(imagePreviewUrl);
+      }
+    };
+  }, [imagePreviewUrl]);
+
   const isFormValid =
     recipientName.trim() !== "" &&
     message.trim() !== "" &&
@@ -50,31 +66,63 @@ export default function BirthdayScroll() {
     cardDate.trim() !== "";
 
   const handleCreateCard = async () => {
-    setIsSaving(true);
-    setGeneratedLink(null);
-    console.log("Saving card with:", {
-      recipient_name: recipientName,
-      message,
-      image_url: imageUrl,
-      image_caption: caption,
-      sender_name: senderName,
-      card_date: cardDate,
-      style: "birthday",
-    });
+    if (!isFormValid) return;
 
+    setUploadError(null);
+    setGeneratedLink(null);
+    let uploadedImageUrl: string | null = null;
+
+    if (imageFile) {
+      setIsUploading(true);
+      const fileExt = imageFile.name.split(".").pop();
+      const filePath = `${Date.now()}-${Math.random()}.${fileExt}`;
+
+      try {
+        const { data: uploadData, error: uploadError } = await supabase.storage
+          .from("card-images")
+          .upload(filePath, imageFile, {
+            cacheControl: "3600",
+            upsert: false,
+          });
+
+        if (uploadError) {
+          throw uploadError;
+        }
+
+        const { data: urlData } = supabase.storage
+          .from("card-images")
+          .getPublicUrl(filePath);
+
+        if (!urlData || !urlData.publicUrl) {
+          throw new Error("Could not get public URL after upload.");
+        }
+        uploadedImageUrl = urlData.publicUrl;
+        console.log("Image uploaded successfully:", uploadedImageUrl);
+      } catch (error) {
+        console.error("Error uploading image:", error);
+        setUploadError(`Image upload failed: ${(error as Error).message}`);
+        setIsUploading(false);
+        return;
+      } finally {
+        setIsUploading(false);
+      }
+    }
+
+    setIsSaving(true);
     try {
+      const cardPayload = {
+        recipient_name: recipientName,
+        message: message,
+        image_url: uploadedImageUrl,
+        image_caption: uploadedImageUrl ? caption : null,
+        sender_name: senderName,
+        card_date: cardDate,
+      };
+      console.log("Saving card data:", cardPayload);
+
       const { data, error } = await supabase
         .from("cards")
-        .insert([
-          {
-            recipient_name: recipientName,
-            message: message,
-            image_url: imageUrl,
-            image_caption: caption,
-            sender_name: senderName,
-            card_date: cardDate,
-          },
-        ])
+        .insert([cardPayload])
         .select()
         .single();
 
@@ -87,13 +135,17 @@ export default function BirthdayScroll() {
         const link = `${window.location.origin}/card/${cardId}`;
         setGeneratedLink(link);
         console.log("Card saved successfully! Link:", link);
+        setImageFile(null);
+        if (imagePreviewUrl) URL.revokeObjectURL(imagePreviewUrl);
+        setImagePreviewUrl(null);
+        setCaption("");
       } else {
-        console.error("No data returned after insert, cannot generate link.");
-        alert("Failed to save card. No ID returned.");
+        console.error("No data returned after insert.");
+        alert("Failed to save card details after potential upload.");
       }
     } catch (error) {
-      console.error("Error saving card:", error);
-      alert(`Failed to save card: ${(error as Error).message}`);
+      console.error("Error saving card data:", error);
+      alert(`Failed to save card details: ${(error as Error).message}`);
     } finally {
       setIsSaving(false);
     }
@@ -130,6 +182,35 @@ export default function BirthdayScroll() {
     } else {
       setFocusedField(null);
     }
+  };
+
+  const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    if (imagePreviewUrl) {
+      URL.revokeObjectURL(imagePreviewUrl);
+      setImagePreviewUrl(null);
+    }
+
+    const file = event.target.files?.[0];
+    if (file) {
+      setImageFile(file);
+      setUploadError(null);
+      const previewUrl = URL.createObjectURL(file);
+      setImagePreviewUrl(previewUrl);
+      setFocusedField("content");
+    } else {
+      setImageFile(null);
+    }
+    event.target.value = "";
+  };
+
+  const clearImage = () => {
+    if (imagePreviewUrl) {
+      URL.revokeObjectURL(imagePreviewUrl);
+    }
+    setImageFile(null);
+    setImagePreviewUrl(null);
+    setCaption("");
+    setUploadError(null);
   };
 
   return (
@@ -193,33 +274,63 @@ export default function BirthdayScroll() {
                 />
               </div>
 
-              <div className="mb-4">
-                <label className="block text-sm font-medium text-gray-600 mb-1">
-                  Image URL (Optional)
-                </label>
-                <input
-                  type="text"
-                  value={imageUrl}
-                  onChange={(e) => setImageUrl(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 mb-2"
-                  placeholder="Enter image URL or leave blank"
-                  onFocus={() => setFocusedField("content")}
-                />
+              <div className="mb-4 space-y-2">
+                <Label>Image (Optional)</Label>
+                <div className="flex items-center space-x-2">
+                  <Label
+                    htmlFor="image-upload"
+                    className={`flex h-10 w-full items-center justify-center rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 cursor-pointer hover:bg-accent hover:text-accent-foreground ${
+                      isUploading ? "cursor-not-allowed opacity-50" : ""
+                    }`}
+                  >
+                    {imageFile ? "Change Image" : "Choose Image"}
+                  </Label>
+                  <Input
+                    id="image-upload"
+                    type="file"
+                    accept="image/*"
+                    onChange={handleFileChange}
+                    onFocus={() => setFocusedField("content")}
+                    className="hidden"
+                    disabled={isUploading}
+                  />
+                </div>
+                {imageFile && (
+                  <div className="mt-2 flex items-center justify-between text-sm text-gray-600 bg-gray-50 p-2 rounded">
+                    <span>{imageFile.name}</span>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={clearImage}
+                      className="text-red-500 hover:text-red-700 h-auto p-1"
+                    >
+                      X
+                    </Button>
+                  </div>
+                )}
+                {uploadError && (
+                  <p className="mt-1 text-xs text-red-600">{uploadError}</p>
+                )}
+                {isUploading && (
+                  <p className="mt-1 text-xs text-indigo-600">Uploading...</p>
+                )}
               </div>
 
-              <div className="mb-4">
-                <label className="block text-sm font-medium text-gray-600 mb-1">
-                  Image Caption (Optional)
-                </label>
-                <input
-                  type="text"
-                  value={caption}
-                  onChange={(e) => setCaption(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
-                  placeholder="Optional image caption"
-                  onFocus={() => setFocusedField("content")}
-                />
-              </div>
+              {imageFile && (
+                <div className="mb-4 space-y-2">
+                  <Label htmlFor="caption-input">
+                    Image Caption (Optional)
+                  </Label>
+                  <Input
+                    id="caption-input"
+                    type="text"
+                    value={caption}
+                    onChange={(e) => setCaption(e.target.value)}
+                    placeholder="Optional image caption"
+                    onFocus={() => setFocusedField("content")}
+                  />
+                </div>
+              )}
 
               <div className="mb-4">
                 <label className="block text-sm font-medium text-gray-600 mb-1">
@@ -258,17 +369,22 @@ export default function BirthdayScroll() {
 
             <div className="mt-auto pt-6">
               <div className="mb-4">
-                <button
+                <Button
                   onClick={handleCreateCard}
-                  disabled={isSaving || !isFormValid}
-                  className={`w-full px-6 py-3 text-white font-semibold rounded-lg shadow-md transition duration-300 ${
-                    isSaving || !isFormValid
-                      ? "bg-gray-400 cursor-not-allowed"
-                      : "bg-green-600 hover:bg-green-700"
-                  }`}
+                  disabled={isSaving || isUploading || !isFormValid}
+                  className="w-full"
+                  variant={
+                    isSaving || isUploading || !isFormValid
+                      ? "secondary"
+                      : "default"
+                  }
                 >
-                  {isSaving ? "Creating..." : "Create Card"}
-                </button>
+                  {isSaving
+                    ? "Saving Card..."
+                    : isUploading
+                    ? "Uploading Image..."
+                    : "Create Card"}
+                </Button>
               </div>
 
               {generatedLink && (
@@ -321,7 +437,7 @@ export default function BirthdayScroll() {
                       key="preview-open"
                       isUnfurled={isUnfurled}
                       message={message}
-                      imageUrl={imageUrl || null}
+                      imageUrl={imagePreviewUrl}
                       caption={caption || null}
                       senderName={senderName}
                       cardDate={cardDate}
@@ -344,7 +460,7 @@ export default function BirthdayScroll() {
                     key="editor-open"
                     isUnfurled={true}
                     message={message}
-                    imageUrl={imageUrl || null}
+                    imageUrl={imagePreviewUrl}
                     caption={caption || null}
                     senderName={senderName}
                     cardDate={cardDate}
@@ -368,12 +484,13 @@ export default function BirthdayScroll() {
           </AnimatePresence>
         </div>
 
-        <button
+        <Button
           onClick={togglePreview}
-          className="fixed bottom-6 right-6 z-50 px-4 py-2 bg-indigo-600 text-white font-semibold rounded-lg shadow-lg hover:bg-indigo-700 transition duration-300 flex items-center space-x-2"
+          variant="secondary"
+          className="fixed bottom-6 right-6 z-50 shadow-lg flex items-center space-x-2"
         >
           <span>{isPreviewing ? "Back to Editor" : "Preview Card"}</span>
-        </button>
+        </Button>
       </div>
     </div>
   );

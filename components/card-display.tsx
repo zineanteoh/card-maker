@@ -139,9 +139,7 @@ const CardDisplay: React.FC<CardDisplayProps> = ({
               <div className="relative h-28">
                 {/* Updated: Use senderName and cardDate props */}
                 <p className="text-center text-gray-500 italic">
-                  <span className="not-italic">❤️❤️</span>{" "}
                   {senderName ? `From ${senderName}` : "(Sender name)"}{" "}
-                  <span className="not-italic">❤️❤️</span>
                 </p>
                 <p className="text-center text-gray-500 italic text-sm mt-1">
                   {cardDate || "(Date)"}
