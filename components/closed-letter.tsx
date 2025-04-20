@@ -6,9 +6,13 @@ import { useState } from "react";
 
 type ClosedLetterProps = {
   onOpen: () => void;
+  recipientName: string;
 };
 
-export default function ClosedLetter({ onOpen }: ClosedLetterProps) {
+export default function ClosedLetter({
+  onOpen,
+  recipientName,
+}: ClosedLetterProps) {
   const [isOpening, setIsOpening] = useState(false);
 
   const handleOpenClick = () => {
@@ -63,12 +67,9 @@ export default function ClosedLetter({ onOpen }: ClosedLetterProps) {
         </div>
 
         {/* Recipient name */}
-        <div className="absolute bottom-6 left-0 w-full text-center">
-          <div className="text-amber-200 font-birthday text-xl">
-            for nean's 姐姐
-          </div>
-          <div className="text-amber-200 font-birthday text-xl">
-            teoh zi ling
+        <div className="absolute bottom-6 left-0 w-full text-center px-4">
+          <div className="text-amber-200 font-birthday text-xl truncate">
+            For: {recipientName}
           </div>
         </div>
       </motion.div>
